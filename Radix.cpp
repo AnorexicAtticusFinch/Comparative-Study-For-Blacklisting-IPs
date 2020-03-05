@@ -1,0 +1,417 @@
+#include <iostream>
+#include <fstream>
+#include <chrono>
+
+#include <unordered_map>
+#include <string.h>
+using namespace std;
+
+struct Node
+{
+	int value;
+	unordered_map<string, Node*> keys;
+};
+
+Node* newNode()
+{
+	Node* temp = new Node;
+	temp->value = 0;
+	temp->keys.clear();
+	
+	return temp;
+}
+
+class Radix
+{
+private:
+	
+	Node* root;
+	
+	int size;
+	void byteSize_helper(Node*);
+	
+	string padWithZeroes_helper(char*);
+	string IPFormat_helper(string);
+	
+	string nextIP_helper(string);
+	
+	int findCommIndex_helper(string, string);
+	void insert_helper(Node*, string);
+	
+	void remove_helper(Node*, string);
+	
+public:
+
+	Radix();
+	//Radix(Trie);
+
+	bool search(string);
+	bool searchRangeAll(string, string);
+	bool searchRangeAny(string, string);
+	
+	void insert(string);
+	void remove(string);
+	
+	int byteSize();
+};
+
+Radix::Radix()
+{
+	root = newNode();
+	size = 0;
+}
+
+string Radix::padWithZeroes_helper(char* arr)
+{
+	string str(arr);
+	
+	if (str.size() == 1)
+	{
+		str = "00" + str;
+	}
+	
+	if (str.size() == 2)
+	{
+		str = "0" + str;
+	}
+	
+	return str;
+}
+
+string Radix::IPFormat_helper(string str)
+{
+	string temp = "";
+	char* tempC = strtok((char*) str.c_str(), ".");
+	while (tempC)
+	{
+		temp += padWithZeroes_helper(tempC);
+		tempC = strtok(NULL, ".");
+	}
+	
+	return temp;
+}
+
+bool Radix::search(string str)
+{
+	str = IPFormat_helper(str);
+
+	Node* temp = root;
+	int beg = 0, len = 1;
+	string tKey;
+	while ((beg + len) <= str.size())
+	{
+		tKey = str.substr(beg, len);
+		
+		if (temp->keys.count(tKey))
+		{
+			temp = temp->keys[tKey];
+			beg += len;
+			len = 1;
+		}
+		
+		else
+		{
+			len++;
+		}
+	}
+	
+	if (beg != str.size())
+	{
+		return false;
+	}
+	
+	return temp->value;
+}
+
+string Radix::nextIP_helper(string str)
+{
+	string temp[4] = {str.substr(0, 3), str.substr(3, 3), str.substr(6, 3), str.substr(9, 3)};
+	
+	for (int a = 3; a > -1; a--)
+	{
+		temp[a] = padWithZeroes_helper((char*) to_string((stoi(temp[a]) + 1) % 256).c_str());
+		if (temp[a] != "000")
+		{
+			break;
+		}
+	}
+	
+	return (temp[0] + temp[1] + temp[2] + temp[3]);
+}
+
+bool Radix::searchRangeAll(string A, string B)
+{
+	string temp1 = IPFormat_helper(A);
+	string temp2 = IPFormat_helper(B);
+	
+	string begin = min(temp1, temp2);
+	string end = max(temp1, temp2);
+	
+	if (!search(begin))
+	{
+		return false;
+	}
+	
+	string str = begin;	
+	while (str != end)
+	{
+		str = nextIP_helper(str);
+		if (!search(str))
+		{
+			return false;
+		}
+	}
+	
+	return true;
+}
+
+bool Radix::searchRangeAny(string A, string B)
+{
+	string temp1 = IPFormat_helper(A);
+	string temp2 = IPFormat_helper(B);
+	
+	string begin = min(temp1, temp2);
+	string end = max(temp1, temp2);
+	
+	if (search(begin))
+	{
+		return true;
+	}
+	
+	string str = begin;	
+	while (str != end)
+	{
+		str = nextIP_helper(str);
+		if (search(str))
+		{
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+int Radix::findCommIndex_helper(string A, string B)
+{
+	int comm = 0;
+	
+	while (comm < A.size() && comm < B.size())
+	{
+		if (A[comm] != B[comm])
+		{
+			break;
+		}
+		
+		comm++;
+	}
+	
+	return comm;
+}
+
+void Radix::insert_helper(Node* node, string str)
+{	
+	Node* temp = root;
+	int comm;
+	
+	for (auto a = temp->keys.begin(); a != temp->keys.end(); a++)
+	{
+		comm = findCommIndex_helper(str, a->first);
+		
+		if (comm == str.size())
+		{
+			temp = temp->keys[str];
+			temp->value = 1;
+			return;
+		}
+		
+		if (comm == 0)
+		{
+			continue;
+		}
+		
+		if (comm == (a->first).size())
+		{
+			insert_helper(a->second, str.substr(comm, str.size() - comm));
+			return;
+		}
+		
+		string tempS = a->first;
+		Node* tempN = a->second;
+		
+		temp->keys.erase(tempS);
+		temp->keys[str.substr(0, comm)] = newNode();
+		temp = temp->keys[str.substr(0, comm)];
+		
+		temp->keys[tempS.substr(comm, tempS.size() - comm)] = tempN;
+		
+		temp->keys[str.substr(comm, str.size() - comm)] = newNode();
+		temp = temp->keys[str.substr(comm, str.size() - comm)];
+		temp->value = 1;
+		
+		return;
+	}
+	
+	temp->keys[str] = newNode();
+	temp = temp->keys[str];
+	temp->value = 1;;
+}
+
+void Radix::insert(string str)
+{
+	str = IPFormat_helper(str);
+	
+	if (search(str))
+	{
+		return;
+	}
+	
+	insert_helper(root, str);
+}
+
+void Radix::remove_helper(Node* node, string str)
+{
+	Node* temp = node;
+	int beg = 0, len = 1;
+	string tKey;
+	while (temp == node)
+	{
+		tKey = str.substr(beg, len);
+		if (temp->keys.count(tKey))
+		{
+			temp = temp->keys[tKey];
+			beg += len;
+			len = 1;
+		}
+
+		else
+		{
+			len++;
+		}
+	}
+	
+	if (beg == str.size())
+	{
+		(node->keys[str])->value = 0;
+		return;
+	}
+	
+	remove_helper(temp, str.substr(beg, str.size() - beg));
+	
+	if (node->keys.size() != 1 || node->value)
+	{
+		return;
+	}
+	
+	Node* child = (node->keys.begin())->second;
+	
+	if (child->keys.size() != 1)
+	{
+		return;
+	}
+	
+	string temp1 = (node->keys.begin())->first;
+	string temp2 = (child->keys.begin())->first;
+	
+	node->keys[temp1 + temp2] = (child->keys.begin())->second;
+	
+	delete node->keys[temp1];
+	node->keys.erase(temp1);
+}
+
+void Radix::remove(string str)
+{
+	str = IPFormat_helper(str);
+	
+	if (!search(str))
+	{
+		return;
+	}
+	
+	Node* temp = root;
+	int beg = 0, len = 1;
+	string tKey;
+	while (temp == root)
+	{
+		tKey = str.substr(beg, len);
+		if (temp->keys.count(tKey))
+		{
+			temp = temp->keys[tKey];
+			beg += len;
+			len = 1;
+		}
+
+		else
+		{
+			len++;
+		}
+	}
+	
+	if (beg == str.size())
+	{
+		(root->keys[str])->value = 0;
+		return;
+	}
+	
+	remove_helper(temp, str.substr(beg, str.size() - beg));
+}
+
+void Radix::byteSize_helper(Node* node)
+{
+	size += node->keys.size() * (sizeof(string) + sizeof(Node*));
+	
+	for (auto a = node->keys.begin(); a != node->keys.end(); a++)
+	{
+		byteSize_helper(a->second);
+	}
+}
+
+int Radix::byteSize()
+{
+	size = 0;
+	byteSize_helper(root);
+	size += sizeof(Radix);
+	
+	return size;
+}
+
+int main()
+{
+	auto start = chrono::steady_clock::now();
+	
+	ios_base::sync_with_stdio(false);
+    cin.tie(NULL);
+	
+	Radix DS;
+	
+	ifstream file;
+	string temp;
+	
+	file.open("IP_Generators_and_IPs/IPs.txt");
+	int count = 1;
+	while (!file.eof())
+	{
+		file >> temp;
+		//cout << temp << " Inserted: " << count++ << endl;
+		DS.insert(temp);
+	}
+	file.close();
+	
+	auto end = chrono::steady_clock::now();
+	auto diff = end - start;
+	cout << "Inserted All IPs in Time: "  << chrono::duration <double, milli> (diff).count() << " ms" << endl;
+	start = chrono::steady_clock::now();
+	
+	file.open("IP_Generators_and_IPs/Single_IP_Searches.txt");
+	while (!file.eof())
+	{
+		file >> temp;
+		//cout << DS.search(temp) << endl;
+		DS.search(temp);
+	}
+	file.close();
+	
+	end = chrono::steady_clock::now();
+	diff = end - start;
+	cout << "Searched All IPs in Time: " << chrono::duration <double, milli> (diff).count() << " ms" << endl;
+	cout << DS.byteSize() << " bytes";
+}
